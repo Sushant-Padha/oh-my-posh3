@@ -15,7 +15,7 @@ In order of priority:
 		- `right_powerline_symbol`: str
 		example use case: having a different prompt head and prompt tail.
 		As in this [gif](https://raw.githubusercontent.com/romkatv/powerlevel10k-media/master/configuration-wizard.gif)
-		![](https://raw.githubusercontent.com/romkatv/powerlevel10k-media/master/configuration-wizard.gif)
+		![configuration-wizard.gif](https://raw.githubusercontent.com/romkatv/powerlevel10k-media/master/configuration-wizard.gif)
 
 - [ ] Add "[transient prompt](https://github.com/romkatv/powerlevel10k#transient-prompt)" feature
 		trims prompt when accepting a command line
@@ -36,8 +36,8 @@ In order of priority:
 		See more icons at [Nerd Fonts](https://www.nerdfonts.com/cheat-sheet) offical website.
 
 - [ ] Add a basic configuration wizard like powerlevel10k has.
+  ![configuration-wizard.gif](https://raw.githubusercontent.com/romkatv/powerlevel10k-media/master/configuration-wizard.gif)
 
 - [ ] Add "[show on command](https://github.com/romkatv/powerlevel10k#show-on-command)" feature
 		Adds relevant segments, only when the command being currently typed, is related
 		![show-on-command.gif](https://raw.githubusercontent.com/romkatv/powerlevel10k-media/master/show-on-command.gif)
-
