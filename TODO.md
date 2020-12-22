@@ -40,6 +40,10 @@ In order of priority:
   - `\uE606`: <i class="nf nf-dev-python"></i> for pyenv, virtualenv etc.
   - `\uE70F`: <i class="nf nf-dev-windows"></i> as alternative for windows os identifier
 
+- [ ] Add functionality to add rprompt as in zsh.
+		Rprompt in zsh allows you to have a prompt on the right side of the terminal,
+		on the line you are currently typing.
+
 - [ ] Add a basic configuration wizard like powerlevel10k has.
 
 <img src="https://raw.githubusercontent.com/romkatv/powerlevel10k-media/master/configuration-wizard.gif" width="500" align="center">
