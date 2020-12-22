@@ -67,7 +67,7 @@ boxes with question marks, [set up your terminal][setupterm] to use a supported 
 
 Let's take a closer look at what defines a block.
 
-- type: `prompt` | `newline`
+- type: `prompt` | `rprompt` | `newline`
 - alignment: `left` | `right`
 - vertical_offset: `int`
 - horizontal_offset: `int`
@@ -75,8 +75,12 @@ Let's take a closer look at what defines a block.
 
 ### Type
 
-Tells the engine what to do with the block. There are two options, either it renders one or more segments,
-or it inserts a newline to start the next block on a new line. New line blocks require no additional
+Tells the engine what to do with the block. There are three options:
+
+- `prompt` renders one or more segments
+- `rprompt` renders one or more segments aligned to the right of the cursor. Only one `rprompt` block is permitted.
+Supported on [ZSH][rprompt] and Powershell.
+- `newline` inserts a new line to start the next block on a new line. `newline` blocks require no additional
 configuration other than the `type`.
 
 ### Alignment
@@ -350,3 +354,4 @@ Oh my Posh mainly supports three different color types being
 [fg]: /docs/configure#foreground
 [regex]: https://www.regular-expressions.info/tutorial.html
 [regex-nl]: https://www.regular-expressions.info/lookaround.html
+[rprompt]: https://scriptingosx.com/2019/07/moving-to-zsh-06-customizing-the-zsh-prompt/

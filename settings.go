@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+
+	"muzzammil.xyz/jsonc"
 )
 
 // Settings holds all the theme for rendering the prompt
@@ -28,6 +30,8 @@ const (
 	Prompt BlockType = "prompt"
 	// LineBreak creates a line break in the prompt
 	LineBreak BlockType = "newline"
+	// RPrompt a right aligned prompt in ZSH and Powershell
+	RPrompt BlockType = "rprompt"
 	// Left aligns left
 	Left BlockAlignment = "left"
 	// Right aligns right
@@ -65,15 +69,13 @@ func loadUserConfiguration(env environmentInfo) (*Settings, error) {
 	if _, err := os.Stat(settingsFile); os.IsNotExist(err) {
 		return nil, errors.New("INVALID CONFIG PATH")
 	}
-	defaultSettings, err := os.Open(settingsFile)
-	defer func() {
-		_ = defaultSettings.Close()
-	}()
+
+	_, j, err := jsonc.ReadFromFile(settingsFile)
 	if err != nil {
 		return nil, errors.New("UNABLE TO OPEN CONFIG")
 	}
-	jsonParser := json.NewDecoder(defaultSettings)
-	err = jsonParser.Decode(&settings)
+
+	err = json.Unmarshal(j, &settings)
 	if err != nil {
 		return nil, errors.New("INVALID CONFIG")
 	}
