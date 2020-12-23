@@ -8,7 +8,6 @@
 ## TODO
 
 Rethink these names and hierarchy of these options.
-Some issues listed below.
 
 [ ] Add the following properties in `block` object:
 
