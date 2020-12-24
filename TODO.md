@@ -10,6 +10,13 @@
 Rethink these names and hierarchy of these options.
 
 1. [ ] Add the following properties in `block` object:
+   Make branch `prompt-head-tail-connector` for this.
+   Name the pull request:
+   > feat: added prompt head, tail, connector options
+   >
+   > Adds options to set prompt head, tail and connector
+   > as found in the powerlevel10k theme for zsh
+   >
 
    - [ ] prompt_head: `str` The character to use as the head of the prompt block.
      This is the leftmost character in a right-aligned prompt,
@@ -33,6 +40,12 @@ Rethink these names and hierarchy of these options.
        - [ ] foreground_color: `color`
 
 2. [ ] Add the following segments (segment features):
+   Make seperate branches for each segment.
+   Name the pull request like this:
+   >
+   >feat: added segment < segment >
+   >< body >
+   >
   
    - [ ] Background jobs
    - [ ] Command number
@@ -41,13 +54,13 @@ Rethink these names and hierarchy of these options.
    - [ ] Extract info from `package.json`
    - [ ] `battery` segment
      - Add custom glyphs/icons for different ranges of battery
-     - Fix bug: battery segment stuck on 100%
      - See [distatus/battery](github.com/distatus/battery)
      - For glyphs, see characters between hex F578 - F583
    - [ ] IP (from any desired interface)
    - [ ] Public IP
    - [ ] **SYSTEM MONITORING**
-       > choose category. receive/read or send/write or both
+       > choose category
+       > receive/read or send/write or both
        > choose desired unit
        > choose time interval
      - [ ] Network usage
@@ -55,3 +68,15 @@ Rethink these names and hierarchy of these options.
      - [ ] RAM Usage
      - [ ] SWAP Usage
      - [ ] I/O
+
+3. [ ] Fix the following bugs:
+   Make a seperate branch for each bug fix.
+   Name the pull request like this:
+   >
+   >fix: < title >
+   >< body >
+   >ref: #< issue number >
+   >
+
+   - [ ] `battery` segment
+     - battery level stuck on 100%
