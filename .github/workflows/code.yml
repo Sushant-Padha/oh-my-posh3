@@ -19,6 +19,9 @@ jobs:
         - os: macos-latest
         - os: windows-latest
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}/src
     steps:
     - name: Install Go
       uses: actions/setup-go@v2
@@ -29,10 +32,11 @@ jobs:
     - name: Bundle init scripts
       run: |
         go get -u github.com/kevinburke/go-bindata/...
-        go-bindata -o init.go init/
+        go generate
     - name: Golang CI
       uses: golangci/golangci-lint-action@v2
       with:
         version: v1.31
+        working-directory: src
     - name: Unit Tests
       run: go test . -v
