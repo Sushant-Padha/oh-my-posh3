@@ -217,6 +217,9 @@ func (env *environment) getBatteryInfo() (*battery.Battery, error) {
 }
 
 func (env *environment) getShellName() string {
+	if *env.args.Shell != "" {
+		return *env.args.Shell
+	}
 	pid := os.Getppid()
 	p, _ := process.NewProcess(int32(pid))
 	name, err := p.Name()
@@ -230,8 +233,9 @@ func (env *environment) getShellName() string {
 	if err != nil {
 		return unknown
 	}
-	shell := strings.Replace(name, ".exe", "", 1)
-	return strings.Trim(shell, " ")
+	// Cache the shell value to speed things up.
+	*env.args.Shell = strings.Trim(strings.Replace(name, ".exe", "", 1), " ")
+	return *env.args.Shell
 }
 
 func (env *environment) doGet(url string) ([]byte, error) {

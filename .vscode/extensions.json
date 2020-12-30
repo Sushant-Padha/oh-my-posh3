@@ -1,7 +1,20 @@
 {
+<<<<<<< HEAD
     "recommendations": [
         "golang.go",
         "yzhang.markdown-all-in-one",
         "shd101wyy.markdown-preview-enhanced"
     ]
 }
+=======
+  "recommendations": [
+    "golang.go",
+    "hbenl.vscode-test-explorer",
+    "ethan-reesor.vscode-go-test-adapter",
+    "github.vscode-pull-request-github",
+    "esbenp.prettier-vscode",
+    "davidanson.vscode-markdownlint",
+    "yzhang.markdown-all-in-one"
+  ]
+}
+>>>>>>> 23eb73cd699d1247f2e29faa34579b1ade61e512

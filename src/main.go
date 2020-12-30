@@ -127,23 +127,34 @@ func main() {
 		fmt.Println(Version)
 		return
 	}
-	shell := env.getShellName()
-	if *args.Shell != "" {
-		shell = *args.Shell
-	}
+
+	formats := &ansiFormats{}
+	formats.init(env.getShellName())
+
 	renderer := &AnsiRenderer{
-		buffer: new(bytes.Buffer),
+		buffer:  new(bytes.Buffer),
+		formats: formats,
 	}
 	colorer := &AnsiColor{
-		buffer: new(bytes.Buffer),
+		buffer:  new(bytes.Buffer),
+		formats: formats,
 	}
-	renderer.init(shell)
-	colorer.init(shell)
-	engine := &engine{
-		settings: settings,
+	title := &consoleTitle{
 		env:      env,
-		color:    colorer,
-		renderer: renderer,
+		settings: settings,
+		formats:  formats,
+	}
+	engine := &engine{
+		settings:     settings,
+		env:          env,
+		color:        colorer,
+		renderer:     renderer,
+		consoleTitle: title,
+	}
+
+	if *args.Debug {
+		engine.debug()
+		return
 	}
 	engine.render()
 }
@@ -165,6 +176,10 @@ func initShell(shell, config string) string {
 
 func printShellInit(shell, config string) string {
 	executable, err := os.Executable()
+	// On Windows, it fails when the excutable is called in MSYS2 for example
+	// which uses unix style paths to resolve the executable's location.
+	// PowerShell knows how to resolve both, so we can swap this without any issue.
+	executable = strings.ReplaceAll(executable, "\\", "/")
 	if err != nil {
 		return noExe
 	}
