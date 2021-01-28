@@ -55,8 +55,7 @@ boxes with question marks, [set up your terminal][setupterm] to use a supported 
 - final_space: `boolean` - when true adds a space at the end of the prompt
 - console_title: `boolean` - when true sets the current location as the console title
 - console_title_style: `string` - the title to set in the console - defaults to `folder`
-- console_title_template: `string` - the template to use when `"console_title_style" = "template"` - defaults
-to `{{ .Shell }} in {{ .Folder }}`
+- console_title_template: `string` - the template to use when `"console_title_style" = "template"`
 
 > "I Like The Way You Speak Words" - Gary Goodspeed
 
@@ -64,20 +63,23 @@ to `{{ .Shell }} in {{ .Folder }}`
 
 - `folder`: show the current folder name
 - `path`: show the current path
-- `template`: show the current path
+- `template`: show a custom template
 
 ### Console Title Template
 
 You can create a more custom console title with the use of `"console_title_style" = "template"`.
 When this is set, a `console_title_template` is also expected, otherwise the title will remain empty.
-Under the hood this uses go's text/template feature and offers a few standard properties to work with.
+Under the hood this uses go's [text/template][go-text-template] feature and offers a few standard
+properties to work with.
 
 - `.Root`: `boolean` - is the current user root/admin or not
 - `.Path`: `string` - the current working directory
 - `.Folder`: `string` - the current working folder
 - `.Shell`: `string` - the current shell name
+- `.Env.VarName`: `string` - Any environment variable where `VarName` is the environment variable name
 
 A `boolean` can be used for conditional display purposes, a `string` can be displayed.
+
 The following examples illustrate possible contents for `console_title_template`, provided
 the current working directory is `/usr/home/omp` and the shell is `zsh`.
 
@@ -89,6 +91,7 @@ the current working directory is `/usr/home/omp` and the shell is `zsh`.
     // when root == true: omp :: root :: zsh
     "console_title_template": "{{.Folder}}", // outputs: omp
     "console_title_template": "{{.Shell}} in {{.Path}}", // outputs: zsh in /usr/home/omp
+    "console_title_template": "{{.Env.USERDOMAIN}} {{.Shell}} in {{.Path}}", // outputs: MyCompany zsh in /usr/home/omp
 }
 ```
 
@@ -280,7 +283,7 @@ Oh my Posh mainly supports three different color types being
 
 - Typical [hex colors][hexcolors] (for example `#CB4B16`).
 - The `transparent` keyword which can be used to create either a transparent foreground override
-  or transparent background color using the segement's foreground property.
+  or transparent background color using the segment's foreground property.
 - 16 [ANSI color names][ansicolors].
 
   These include 8 basic ANSI colors and `default`:
@@ -290,6 +293,19 @@ Oh my Posh mainly supports three different color types being
   as well as 8 extended ANSI colors:
 
   `darkGray` `lightRed` `lightGreen` `lightYellow` `lightBlue` `lightMagenta` `lightCyan` `lightWhite`
+
+### Hyperlinks
+
+The engine has the ability to render hyperlinks. Your terminal has to support it and the option
+has to be enabled at the segment level. Hyperlink generation is disabled by default.
+
+#### Supported segments
+
+- [Path][path-segment]
+
+#### Supported terminals
+
+- [Terminal list][terminal-list-hyperlinks]
 
 ## Full Sample
 
@@ -341,7 +357,8 @@ Oh my Posh mainly supports three different color types being
             "style": "folder",
             "ignore_folders": [
               "/super/secret/project"
-            ]
+            ],
+            "enable_hyperlink": false
           }
         },
         {
@@ -384,3 +401,6 @@ Oh my Posh mainly supports three different color types being
 [regex]: https://www.regular-expressions.info/tutorial.html
 [regex-nl]: https://www.regular-expressions.info/lookaround.html
 [rprompt]: https://scriptingosx.com/2019/07/moving-to-zsh-06-customizing-the-zsh-prompt/
+[path-segment]: /docs/path
+[terminal-list-hyperlinks]: https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+[go-text-template]: https://golang.org/pkg/text/template/

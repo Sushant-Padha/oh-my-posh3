@@ -27,7 +27,13 @@ Supports conda, virtualenv and pyenv.
 ## Properties
 
 - display_virtual_env: `boolean` - show the name of the virtualenv or not - defaults to `true`
+- display_default_env: `boolean` - show the name of the virtualenv when it's default (`system`, `base`)
+or not - defaults to `true`
+- display_version: `boolean` - display the python version - defaults to `true`
+- missing_command_text: `string` - text to display when the command is missing - defaults to empty
 - display_mode: `string` - determines when the segment is displayed
   - `always`: The segment is always displayed
-  - `context`: The segment is only displayed when *.py or *.ipynb files are present (default)
-  - `never`: The segement is hidden
+  - `files`: The segment is only displayed when `*.py`, `*.ipynb`, `pyproject.toml`, `venv.bak`, `venv`, or `.venv`
+    files are present (default)
+  - `environment`: The segment is only displayed when a virtual env is present
+  - `context`: The segment is only displayed when either `environment` or `files` is active

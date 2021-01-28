@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,11 +23,34 @@ func TestEnabledGitNotFound(t *testing.T) {
 func TestEnabledInWorkingDirectory(t *testing.T) {
 	env := new(MockedEnvironment)
 	env.On("hasCommand", "git").Return(true)
-	env.On("runCommand", "git", []string{"rev-parse", "--is-inside-work-tree"}).Return("true", nil)
+	fileInfo := &fileInfo{
+		path:         "/dir/hello",
+		parentFolder: "/dir",
+		isDir:        true,
+	}
+	env.On("hasParentFilePath", ".git").Return(fileInfo, nil)
 	g := &git{
 		env: env,
 	}
 	assert.True(t, g.enabled())
+	assert.Equal(t, fileInfo.path, g.repo.gitFolder)
+}
+
+func TestEnabledInWorkingTree(t *testing.T) {
+	env := new(MockedEnvironment)
+	env.On("hasCommand", "git").Return(true)
+	fileInfo := &fileInfo{
+		path:         "/dir/hello",
+		parentFolder: "/dir",
+		isDir:        false,
+	}
+	env.On("hasParentFilePath", ".git").Return(fileInfo, nil)
+	env.On("getFileContent", "/dir/hello").Return("gitdir: /dir/hello/burp/burp")
+	g := &git{
+		env: env,
+	}
+	assert.True(t, g.enabled())
+	assert.Equal(t, "/dir/hello/burp/burp", g.repo.gitFolder)
 }
 
 func TestGetGitOutputForCommand(t *testing.T) {
@@ -61,29 +85,28 @@ type detachedContext struct {
 
 func setupHEADContextEnv(context *detachedContext) *git {
 	env := new(MockedEnvironment)
-	env.On("hasFolder", "/.git/rebase-merge").Return(context.rebaseMerge)
-	env.On("hasFolder", "/.git/rebase-apply").Return(context.rebaseApply)
-	env.On("getFileContent", "/.git/rebase-merge/orig-head").Return(context.origin)
-	env.On("getFileContent", "/.git/rebase-merge/onto").Return(context.onto)
-	env.On("getFileContent", "/.git/rebase-merge/msgnum").Return(context.step)
-	env.On("getFileContent", "/.git/rebase-apply/next").Return(context.step)
-	env.On("getFileContent", "/.git/rebase-merge/end").Return(context.total)
-	env.On("getFileContent", "/.git/rebase-apply/last").Return(context.total)
-	env.On("getFileContent", "/.git/rebase-apply/head-name").Return(context.origin)
-	env.On("getFileContent", "/.git/CHERRY_PICK_HEAD").Return(context.cherryPickSHA)
-	env.On("getFileContent", "/.git/MERGE_HEAD").Return(context.mergeHEAD)
-	env.On("hasFilesInDir", "", ".git/CHERRY_PICK_HEAD").Return(context.cherryPick)
-	env.On("hasFilesInDir", "", ".git/MERGE_HEAD").Return(context.merge)
+	env.On("hasFolder", "/rebase-merge").Return(context.rebaseMerge)
+	env.On("hasFolder", "/rebase-apply").Return(context.rebaseApply)
+	env.On("getFileContent", "/rebase-merge/head-name").Return(context.origin)
+	env.On("getFileContent", "/rebase-merge/onto").Return(context.onto)
+	env.On("getFileContent", "/rebase-merge/msgnum").Return(context.step)
+	env.On("getFileContent", "/rebase-apply/next").Return(context.step)
+	env.On("getFileContent", "/rebase-merge/end").Return(context.total)
+	env.On("getFileContent", "/rebase-apply/last").Return(context.total)
+	env.On("getFileContent", "/rebase-apply/head-name").Return(context.origin)
+	env.On("getFileContent", "/CHERRY_PICK_HEAD").Return(context.cherryPickSHA)
+	env.On("getFileContent", "/MERGE_MSG").Return(fmt.Sprintf("Merge branch '%s' into %s", context.mergeHEAD, context.onto))
+	env.On("hasFilesInDir", "", "CHERRY_PICK_HEAD").Return(context.cherryPick)
+	env.On("hasFilesInDir", "", "MERGE_MSG").Return(context.merge)
+	env.On("hasFilesInDir", "", "MERGE_HEAD").Return(context.merge)
 	env.mockGitCommand(context.currentCommit, "rev-parse", "--short", "HEAD")
 	env.mockGitCommand(context.tagName, "describe", "--tags", "--exact-match")
 	env.mockGitCommand(context.origin, "name-rev", "--name-only", "--exclude=tags/*", context.origin)
 	env.mockGitCommand(context.onto, "name-rev", "--name-only", "--exclude=tags/*", context.onto)
-	env.mockGitCommand(context.cherryPickSHA, "name-rev", "--name-only", "--exclude=tags/*", context.cherryPickSHA)
-	env.mockGitCommand(context.mergeHEAD, "name-rev", "--name-only", "--exclude=tags/*", context.mergeHEAD)
 	g := &git{
 		env: env,
 		repo: &gitRepo{
-			root: "",
+			gitFolder: "",
 		},
 	}
 	return g
@@ -207,25 +230,26 @@ func TestGetGitHEADContextMergeTag(t *testing.T) {
 }
 
 func TestGetStashContextZeroEntries(t *testing.T) {
-	want := ""
-	env := new(MockedEnvironment)
-	env.On("runCommand", "git", []string{"-c", "core.quotepath=false", "-c", "color.status=false", "rev-list", "--walk-reflogs", "--count", "refs/stash"}).Return("", nil)
-	g := &git{
-		env: env,
+	cases := []struct {
+		Expected     int
+		StashContent string
+	}{
+		{Expected: 0, StashContent: ""},
+		{Expected: 2, StashContent: "1\n2\n"},
+		{Expected: 4, StashContent: "1\n2\n3\n4\n\n"},
 	}
-	got := g.getStashContext()
-	assert.Equal(t, want, got)
-}
-
-func TestGetStashContextMultipleEntries(t *testing.T) {
-	want := "2"
-	env := new(MockedEnvironment)
-	env.On("runCommand", "git", []string{"-c", "core.quotepath=false", "-c", "color.status=false", "rev-list", "--walk-reflogs", "--count", "refs/stash"}).Return("2", nil)
-	g := &git{
-		env: env,
+	for _, tc := range cases {
+		env := new(MockedEnvironment)
+		env.On("getFileContent", "/logs/refs/stash").Return(tc.StashContent)
+		g := &git{
+			repo: &gitRepo{
+				gitFolder: "",
+			},
+			env: env,
+		}
+		got := g.getStashContext()
+		assert.Equal(t, tc.Expected, got)
 	}
-	got := g.getStashContext()
-	assert.Equal(t, want, got)
 }
 
 func TestParseGitBranchInfoEqual(t *testing.T) {
@@ -285,26 +309,26 @@ func TestParseGitBranchInfoRemoteGone(t *testing.T) {
 }
 
 func TestGitStatusUnmerged(t *testing.T) {
-	expected := "<#123456>working: x1</>"
+	expected := " x1"
 	status := &gitStatus{
 		unmerged: 1,
 	}
-	assert.Equal(t, expected, status.string("working:", "#123456"))
+	assert.Equal(t, expected, status.string())
 }
 
 func TestGitStatusUnmergedModified(t *testing.T) {
-	expected := "<#123456>working: ~3 x1</>"
+	expected := " ~3 x1"
 	status := &gitStatus{
 		unmerged: 1,
 		modified: 3,
 	}
-	assert.Equal(t, expected, status.string("working:", "#123456"))
+	assert.Equal(t, expected, status.string())
 }
 
 func TestGitStatusEmpty(t *testing.T) {
 	expected := ""
 	status := &gitStatus{}
-	assert.Equal(t, expected, status.string("working:", "#123456"))
+	assert.Equal(t, expected, status.string())
 }
 
 func TestParseGitStatsWorking(t *testing.T) {
@@ -577,7 +601,7 @@ func TestSetStatusColorForeground(t *testing.T) {
 }
 
 func TestGetStatusDetailStringDefault(t *testing.T) {
-	expected := "<#111111>icon +1</>"
+	expected := "icon +1"
 	status := &gitStatus{
 		changed: true,
 		added:   1,
@@ -590,8 +614,61 @@ func TestGetStatusDetailStringDefault(t *testing.T) {
 	assert.Equal(t, expected, g.getStatusDetailString(status, WorkingColor, LocalWorkingIcon, "icon"))
 }
 
+func TestGetStatusDetailStringDefaultColorOverride(t *testing.T) {
+	expected := "<#123456>icon +1</>"
+	status := &gitStatus{
+		changed: true,
+		added:   1,
+	}
+	g := &git{
+		props: &properties{
+			values: map[Property]interface{}{
+				WorkingColor: "#123456",
+			},
+			foreground: "#111111",
+		},
+	}
+	assert.Equal(t, expected, g.getStatusDetailString(status, WorkingColor, LocalWorkingIcon, "icon"))
+}
+
+func TestGetStatusDetailStringDefaultColorOverrideAndIconColorOverride(t *testing.T) {
+	expected := "<#789123>work</><#123456> +1</>"
+	status := &gitStatus{
+		changed: true,
+		added:   1,
+	}
+	g := &git{
+		props: &properties{
+			values: map[Property]interface{}{
+				WorkingColor:     "#123456",
+				LocalWorkingIcon: "<#789123>work</>",
+			},
+			foreground: "#111111",
+		},
+	}
+	assert.Equal(t, expected, g.getStatusDetailString(status, WorkingColor, LocalWorkingIcon, "icon"))
+}
+
+func TestGetStatusDetailStringDefaultColorOverrideNoIconColorOverride(t *testing.T) {
+	expected := "<#123456>work +1</>"
+	status := &gitStatus{
+		changed: true,
+		added:   1,
+	}
+	g := &git{
+		props: &properties{
+			values: map[Property]interface{}{
+				WorkingColor:     "#123456",
+				LocalWorkingIcon: "work",
+			},
+			foreground: "#111111",
+		},
+	}
+	assert.Equal(t, expected, g.getStatusDetailString(status, WorkingColor, LocalWorkingIcon, "icon"))
+}
+
 func TestGetStatusDetailStringNoStatus(t *testing.T) {
-	expected := "<#111111>icon</>"
+	expected := "icon"
 	status := &gitStatus{
 		changed: true,
 		added:   1,
@@ -623,4 +700,19 @@ func TestGetStatusDetailStringNoStatusColorOverride(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, g.getStatusDetailString(status, WorkingColor, LocalWorkingIcon, "icon"))
+}
+
+func TestGitOutPut(t *testing.T) {
+	g := &git{
+		env: &environment{},
+		props: &properties{
+			values: map[Property]interface{}{
+				LocalWorkingIcon: "<#88C0D0>\u21e1 </>",
+			},
+			foreground: "#111111",
+		},
+	}
+	assert.True(t, g.enabled())
+	value := g.string()
+	assert.NotEmpty(t, value)
 }

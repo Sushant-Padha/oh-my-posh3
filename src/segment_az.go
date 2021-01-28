@@ -36,11 +36,12 @@ func (a *az) init(props *properties, env environmentInfo) {
 }
 
 func (a *az) enabled() bool {
-	if (!a.idEnabled() && !a.nameEnabled()) || !a.env.hasCommand("az") {
+	cmd := "az"
+	if (!a.idEnabled() && !a.nameEnabled()) || !a.env.hasCommand(cmd) {
 		return false
 	}
 
-	output, _ := a.env.runCommand("az", "account", "show", "--query=[name,id]", "-o=tsv")
+	output, _ := a.env.runCommand(cmd, "account", "show", "--query=[name,id]", "-o=tsv")
 	if output == "" {
 		return false
 	}

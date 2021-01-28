@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -45,23 +44,31 @@ func (pt *path) enabled() bool {
 }
 
 func (pt *path) string() string {
+	cwd := pt.env.getcwd()
+	var formattedPath string
 	switch style := pt.props.getString(Style, Agnoster); style {
 	case Agnoster:
-		return pt.getAgnosterPath()
+		formattedPath = pt.getAgnosterPath()
 	case AgnosterFull:
-		return pt.getAgnosterFullPath()
+		formattedPath = pt.getAgnosterFullPath()
 	case AgnosterShort:
-		return pt.getAgnosterShortPath()
+		formattedPath = pt.getAgnosterShortPath()
 	case Short:
 		// "short" is a duplicate of "full", just here for backwards compatibility
 		fallthrough
 	case Full:
-		return pt.getFullPath()
+		formattedPath = pt.getFullPath()
 	case Folder:
-		return pt.getFolderPath()
+		formattedPath = pt.getFolderPath()
 	default:
 		return fmt.Sprintf("Path style: %s is not available", style)
 	}
+
+	if pt.props.getBool(EnableHyperlink, false) {
+		return fmt.Sprintf("[%s](file://%s)", formattedPath, cwd)
+	}
+
+	return formattedPath
 }
 
 func (pt *path) init(props *properties, env environmentInfo) {
@@ -70,7 +77,7 @@ func (pt *path) init(props *properties, env environmentInfo) {
 }
 
 func (pt *path) getAgnosterPath() string {
-	buffer := new(bytes.Buffer)
+	var buffer strings.Builder
 	pwd := pt.getPwd()
 	buffer.WriteString(pt.rootLocation())
 	pathDepth := pt.pathDepth(pwd)
@@ -115,16 +122,18 @@ func (pt *path) getFullPath() string {
 
 func (pt *path) getFolderPath() string {
 	pwd := pt.getPwd()
-	return base(pwd, pt.env)
+	pwd = base(pwd, pt.env)
+	return pt.replaceFolderSeparators(pwd)
 }
 
 func (pt *path) getPwd() string {
-	pwd := pt.env.getcwd()
-
+	pwd := *pt.env.getArgs().PSWD
+	if pwd == "" {
+		pwd = pt.env.getcwd()
+	}
 	if pt.props.getBool(MappedLocationsEnabled, true) {
 		pwd = pt.replaceMappedLocations(pwd)
 	}
-
 	return pwd
 }
 

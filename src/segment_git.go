@@ -14,8 +14,8 @@ type gitRepo struct {
 	behind     int
 	HEAD       string
 	upstream   string
-	stashCount string
-	root       string
+	stashCount int
+	gitFolder  string
 }
 
 type gitStatus struct {
@@ -27,7 +27,7 @@ type gitStatus struct {
 	changed   bool
 }
 
-func (s *gitStatus) string(prefix, color string) string {
+func (s *gitStatus) string() string {
 	var status string
 	stringIfValue := func(value int, prefix string) string {
 		if value > 0 {
@@ -40,9 +40,6 @@ func (s *gitStatus) string(prefix, color string) string {
 	status += stringIfValue(s.deleted, "-")
 	status += stringIfValue(s.untracked, "?")
 	status += stringIfValue(s.unmerged, "x")
-	if status != "" {
-		return fmt.Sprintf("<%s>%s%s</>", color, prefix, status)
-	}
 	return status
 }
 
@@ -77,6 +74,8 @@ const (
 	CherryPickIcon Property = "cherry_pick_icon"
 	// CommitIcon shows before the detached context
 	CommitIcon Property = "commit_icon"
+	// NoCommitsIcon shows when there are no commits in the repo yet
+	NoCommitsIcon Property = "no_commits_icon"
 	// TagIcon shows before the tag context
 	TagIcon Property = "tag_icon"
 	// DisplayStashCount show stash count or not
@@ -111,14 +110,32 @@ const (
 	BehindColor Property = "behind_color"
 	// AheadColor if set, the color to use when the branch is ahead and behind the remote
 	AheadColor Property = "ahead_color"
+
+	gitCommand = "git"
 )
 
 func (g *git) enabled() bool {
 	if !g.env.hasCommand("git") {
 		return false
 	}
-	output, _ := g.env.runCommand("git", "rev-parse", "--is-inside-work-tree")
-	return output == "true"
+	gitdir, err := g.env.hasParentFilePath(".git")
+	if err != nil {
+		return false
+	}
+	g.repo = &gitRepo{}
+	if gitdir.isDir {
+		g.repo.gitFolder = gitdir.path
+		return true
+	}
+	// handle worktree
+	dirPointer := g.env.getFileContent(gitdir.path)
+	dirPointer = strings.Trim(dirPointer, " \r\n")
+	matches := findNamedRegexMatch(`^gitdir: (?P<dir>.*)$`, dirPointer)
+	if matches != nil && matches["dir"] != "" {
+		g.repo.gitFolder = matches["dir"]
+		return true
+	}
+	return false
 }
 
 func (g *git) string() string {
@@ -158,8 +175,8 @@ func (g *git) string() string {
 	if g.repo.working.changed {
 		fmt.Fprint(buffer, g.getStatusDetailString(g.repo.working, WorkingColor, LocalWorkingIcon, " \uF044"))
 	}
-	if g.props.getBool(DisplayStashCount, false) && g.repo.stashCount != "" {
-		fmt.Fprintf(buffer, " %s%s", g.props.getString(StashCountIcon, "\uF692 "), g.repo.stashCount)
+	if g.repo.stashCount != 0 {
+		fmt.Fprintf(buffer, " %s%d", g.props.getString(StashCountIcon, "\uF692 "), g.repo.stashCount)
 	}
 	return buffer.String()
 }
@@ -173,9 +190,19 @@ func (g *git) getStatusDetailString(status *gitStatus, color, icon Property, def
 	prefix := g.props.getString(icon, defaultIcon)
 	foregroundColor := g.props.getColor(color, g.props.foreground)
 	if !g.props.getBool(DisplayStatusDetail, true) {
-		return fmt.Sprintf("<%s>%s</>", foregroundColor, prefix)
+		return g.colorStatusString(prefix, "", foregroundColor)
 	}
-	return status.string(prefix, foregroundColor)
+	return g.colorStatusString(prefix, status.string(), foregroundColor)
+}
+
+func (g *git) colorStatusString(prefix, status, color string) string {
+	if color == g.props.foreground {
+		return fmt.Sprintf("%s%s", prefix, status)
+	}
+	if strings.Contains(prefix, "</>") {
+		return fmt.Sprintf("%s<%s>%s</>", prefix, color, status)
+	}
+	return fmt.Sprintf("<%s>%s%s</>", color, prefix, status)
 }
 
 func (g *git) getUpstreamSymbol() string {
@@ -194,8 +221,6 @@ func (g *git) getUpstreamSymbol() string {
 }
 
 func (g *git) setGitStatus() {
-	g.repo = &gitRepo{}
-	g.repo.root = g.getGitCommandOutput("rev-parse", "--show-toplevel")
 	output := g.getGitCommandOutput("status", "-unormal", "--short", "--branch")
 	splittedOutput := strings.Split(output, "\n")
 	g.repo.working = g.parseGitStats(splittedOutput, true)
@@ -209,7 +234,9 @@ func (g *git) setGitStatus() {
 		}
 	}
 	g.repo.HEAD = g.getGitHEADContext(status["local"])
-	g.repo.stashCount = g.getStashContext()
+	if g.props.getBool(DisplayStashCount, false) {
+		g.repo.stashCount = g.getStashContext()
+	}
 }
 
 func (g *git) SetStatusColor() {
@@ -235,7 +262,7 @@ func (g *git) getStatusColor(defaultValue string) string {
 
 func (g *git) getGitCommandOutput(args ...string) string {
 	args = append([]string{"-c", "core.quotepath=false", "-c", "color.status=false"}, args...)
-	val, _ := g.env.runCommand("git", args...)
+	val, _ := g.env.runCommand(gitCommand, args...)
 	return val
 }
 
@@ -248,7 +275,8 @@ func (g *git) getGitHEADContext(ref string) string {
 	}
 	// rebase
 	if g.hasGitFolder("rebase-merge") {
-		origin := g.getGitRefFileSymbolicName("rebase-merge/orig-head")
+		head := g.getGitFileContents("rebase-merge/head-name")
+		origin := strings.Replace(head, "refs/heads/", "", 1)
 		onto := g.getGitRefFileSymbolicName("rebase-merge/onto")
 		step := g.getGitFileContents("rebase-merge/msgnum")
 		total := g.getGitFileContents("rebase-merge/end")
@@ -264,32 +292,35 @@ func (g *git) getGitHEADContext(ref string) string {
 		return fmt.Sprintf("%s%s%s (%s/%s) at %s", icon, branchIcon, origin, step, total, ref)
 	}
 	// merge
-	if g.hasGitFile("MERGE_HEAD") {
-		mergeHEAD := g.getGitRefFileSymbolicName("MERGE_HEAD")
+	if g.hasGitFile("MERGE_MSG") && g.hasGitFile("MERGE_HEAD") {
 		icon := g.props.getString(MergeIcon, "\uE727 ")
-		return fmt.Sprintf("%s%s%s into %s", icon, branchIcon, mergeHEAD, ref)
+		mergeContext := g.getGitFileContents("MERGE_MSG")
+		matches := findNamedRegexMatch(`Merge branch '(?P<head>.*)' into`, mergeContext)
+		if matches != nil && matches["head"] != "" {
+			return fmt.Sprintf("%s%s%s into %s", icon, branchIcon, matches["head"], ref)
+		}
 	}
 	// cherry-pick
 	if g.hasGitFile("CHERRY_PICK_HEAD") {
-		sha := g.getGitRefFileSymbolicName("CHERRY_PICK_HEAD")
+		sha := g.getGitFileContents("CHERRY_PICK_HEAD")
 		icon := g.props.getString(CherryPickIcon, "\uE29B ")
-		return fmt.Sprintf("%s%s onto %s", icon, sha, ref)
+		return fmt.Sprintf("%s%s onto %s", icon, sha[0:6], ref)
 	}
 	return ref
 }
 
 func (g *git) hasGitFile(file string) bool {
-	files := fmt.Sprintf(".git/%s", file)
-	return g.env.hasFilesInDir(g.repo.root, files)
+	return g.env.hasFilesInDir(g.repo.gitFolder, file)
 }
 
 func (g *git) hasGitFolder(folder string) bool {
-	path := fmt.Sprintf("%s/.git/%s", g.repo.root, folder)
+	path := g.repo.gitFolder + "/" + folder
 	return g.env.hasFolder(path)
 }
 
 func (g *git) getGitFileContents(file string) string {
-	content := g.env.getFileContent(fmt.Sprintf("%s/.git/%s", g.repo.root, file))
+	path := g.repo.gitFolder + "/" + file
+	content := g.env.getFileContent(path)
 	return strings.Trim(content, " \r\n")
 }
 
@@ -306,6 +337,9 @@ func (g *git) getPrettyHEADName() string {
 	}
 	// fallback to commit
 	ref = g.getGitCommandOutput("rev-parse", "--short", "HEAD")
+	if ref == "" {
+		return g.props.getString(NoCommitsIcon, "\uF594 ")
+	}
 	return fmt.Sprintf("%s%s", g.props.getString(CommitIcon, "\uF417"), ref)
 }
 
@@ -341,8 +375,13 @@ func (g *git) parseGitStats(output []string, working bool) *gitStatus {
 	return &status
 }
 
-func (g *git) getStashContext() string {
-	return g.getGitCommandOutput("rev-list", "--walk-reflogs", "--count", "refs/stash")
+func (g *git) getStashContext() int {
+	stashContent := g.getGitFileContents("logs/refs/stash")
+	if stashContent == "" {
+		return 0
+	}
+	lines := strings.Split(stashContent, "\n")
+	return len(lines)
 }
 
 func (g *git) parseGitStatusInfo(branchInfo string) map[string]string {

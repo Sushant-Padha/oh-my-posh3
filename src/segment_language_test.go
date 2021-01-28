@@ -7,21 +7,24 @@ import (
 )
 
 const (
-	universion = "1.3.3.7"
+	universion = "1.3.307"
 	uni        = "*.uni"
 	corn       = "*.corn"
 )
 
 type languageArgs struct {
-	version           string
-	displayVersion    bool
-	displayMode       string
-	extensions        []string
-	enabledExtensions []string
-	commands          []string
-	enabledCommands   []string
-	versionParam      string
-	versionRegex      string
+	version            string
+	displayVersion     bool
+	displayMode        string
+	extensions         []string
+	enabledExtensions  []string
+	commands           []string
+	enabledCommands    []string
+	versionParam       string
+	versionRegex       string
+	missingCommandText string
+	urlTemplate        string
+	enableHyperlink    bool
 }
 
 func (l *languageArgs) hasvalue(value string, list []string) bool {
@@ -44,9 +47,13 @@ func bootStrapLanguageTest(args *languageArgs) *language {
 	}
 	props := &properties{
 		values: map[Property]interface{}{
-			DisplayVersion:      args.displayVersion,
-			DisplayModeProperty: args.displayMode,
+			DisplayVersion:  args.displayVersion,
+			DisplayMode:     args.displayMode,
+			EnableHyperlink: args.enableHyperlink,
 		},
+	}
+	if args.missingCommandText != "" {
+		props.values[MissingCommandTextProperty] = args.missingCommandText
 	}
 	l := &language{
 		props:        props,
@@ -54,12 +61,15 @@ func bootStrapLanguageTest(args *languageArgs) *language {
 		extensions:   args.extensions,
 		commands:     args.commands,
 		versionParam: args.versionParam,
-		versionRegex: args.versionRegex,
+		version: &version{
+			regex:       args.versionRegex,
+			urlTemplate: args.urlTemplate,
+		},
 	}
 	return l
 }
 
-func TestLanguageFilesFoundButNoCommandAndVersion(t *testing.T) {
+func TestLanguageFilesFoundButNoCommandAndVersionAndDisplayVersion(t *testing.T) {
 	args := &languageArgs{
 		commands:          []string{"unicorn"},
 		versionParam:      "--version",
@@ -68,7 +78,20 @@ func TestLanguageFilesFoundButNoCommandAndVersion(t *testing.T) {
 		displayVersion:    true,
 	}
 	lang := bootStrapLanguageTest(args)
-	assert.False(t, lang.enabled(), "unicorn is not available")
+	assert.True(t, lang.enabled())
+	assert.Equal(t, MissingCommandText, lang.string(), "unicorn is not available")
+}
+
+func TestLanguageFilesFoundButNoCommandAndVersionAndDontDisplayVersion(t *testing.T) {
+	args := &languageArgs{
+		commands:          []string{"unicorn"},
+		versionParam:      "--version",
+		extensions:        []string{uni},
+		enabledExtensions: []string{uni},
+		displayVersion:    false,
+	}
+	lang := bootStrapLanguageTest(args)
+	assert.True(t, lang.enabled(), "unicorn is not available")
 }
 
 func TestLanguageFilesFoundButNoCommandAndNoVersion(t *testing.T) {
@@ -171,4 +194,109 @@ func TestLanguageEnabledNoVersion(t *testing.T) {
 	lang := bootStrapLanguageTest(args)
 	assert.True(t, lang.enabled())
 	assert.Equal(t, "", lang.string(), "unicorn is available and uni and corn files are found")
+}
+
+func TestLanguageEnabledMissingCommand(t *testing.T) {
+	args := &languageArgs{
+		versionParam:      "--version",
+		commands:          []string{""},
+		enabledCommands:   []string{"unicorn"},
+		extensions:        []string{uni, corn},
+		versionRegex:      "(?P<version>.*)",
+		version:           universion,
+		enabledExtensions: []string{uni, corn},
+		displayVersion:    false,
+	}
+	lang := bootStrapLanguageTest(args)
+	assert.True(t, lang.enabled())
+	assert.Equal(t, "", lang.string(), "unicorn is available and uni and corn files are found")
+}
+
+func TestLanguageEnabledMissingCommandCustomText(t *testing.T) {
+	args := &languageArgs{
+		versionParam:       "--version",
+		commands:           []string{""},
+		enabledCommands:    []string{"unicorn"},
+		extensions:         []string{uni, corn},
+		versionRegex:       "(?P<version>.*)",
+		version:            universion,
+		enabledExtensions:  []string{uni, corn},
+		displayVersion:     true,
+		missingCommandText: "missing",
+	}
+	lang := bootStrapLanguageTest(args)
+	assert.True(t, lang.enabled())
+	assert.Equal(t, args.missingCommandText, lang.string(), "unicorn is available and uni and corn files are found")
+}
+
+func TestLanguageHyperlinkEnabled(t *testing.T) {
+	args := &languageArgs{
+		versionParam:      "--version",
+		commands:          []string{"uni", "corn"},
+		enabledCommands:   []string{"corn"},
+		extensions:        []string{uni, corn},
+		versionRegex:      `(?P<version>((?P<major>[0-9]+).(?P<minor>[0-9]+).(?P<patch>[0-9]+)))`,
+		urlTemplate:       "[%s](https://unicor.org/doc/%s.%s.%s)",
+		version:           universion,
+		enabledExtensions: []string{corn},
+		displayVersion:    true,
+		enableHyperlink:   true,
+	}
+	lang := bootStrapLanguageTest(args)
+	assert.True(t, lang.enabled())
+	assert.Equal(t, "[1.3.307](https://unicor.org/doc/1.3.307)", lang.string())
+}
+
+func TestLanguageHyperlinkEnabledWrongRegex(t *testing.T) {
+	args := &languageArgs{
+		versionParam:      "--version",
+		commands:          []string{"uni", "corn"},
+		enabledCommands:   []string{"corn"},
+		extensions:        []string{uni, corn},
+		versionRegex:      `wrong`,
+		urlTemplate:       "[%s](https://unicor.org/doc/%s.%s.%s)",
+		version:           universion,
+		enabledExtensions: []string{corn},
+		displayVersion:    true,
+		enableHyperlink:   true,
+	}
+	lang := bootStrapLanguageTest(args)
+	assert.True(t, lang.enabled())
+	assert.Equal(t, "", lang.string())
+}
+
+func TestLanguageHyperlinkEnabledLessParamInTemplate(t *testing.T) {
+	args := &languageArgs{
+		versionParam:      "--version",
+		commands:          []string{"uni", "corn"},
+		enabledCommands:   []string{"corn"},
+		extensions:        []string{uni, corn},
+		versionRegex:      `(?P<version>((?P<major>[0-9]+).(?P<minor>[0-9]+).(?P<patch>[0-9]+)))`,
+		urlTemplate:       "[%s](https://unicor.org/doc/%s)",
+		version:           universion,
+		enabledExtensions: []string{corn},
+		displayVersion:    true,
+		enableHyperlink:   true,
+	}
+	lang := bootStrapLanguageTest(args)
+	assert.True(t, lang.enabled())
+	assert.Equal(t, "[1.3.307](https://unicor.org/doc/1)", lang.string())
+}
+
+func TestLanguageHyperlinkEnabledMoreParamInTemplate(t *testing.T) {
+	args := &languageArgs{
+		versionParam:      "--version",
+		commands:          []string{"uni", "corn"},
+		enabledCommands:   []string{"corn"},
+		extensions:        []string{uni, corn},
+		versionRegex:      `(?P<version>((?P<major>[0-9]+).(?P<minor>[0-9]+).(?P<patch>[0-9]+)))`,
+		urlTemplate:       "[%s](https://unicor.org/doc/%s.%s.%s.%s)",
+		version:           universion,
+		enabledExtensions: []string{corn},
+		displayVersion:    true,
+		enableHyperlink:   true,
+	}
+	lang := bootStrapLanguageTest(args)
+	assert.True(t, lang.enabled())
+	assert.Equal(t, "1.3.307", lang.string())
 }

@@ -2,13 +2,15 @@ $global:PoshSettings = New-Object -TypeName PSObject -Property @{
     Theme = "";
 }
 
-if (Test-Path "::CONFIG::") {
-    $global:PoshSettings.Theme = Resolve-Path -Path "::CONFIG::"
+$config = "::CONFIG::"
+if (Test-Path $config) {
+    $global:PoshSettings.Theme = (Resolve-Path -Path $config).Path
 }
-function Set-PoshContext {}
 
-function Set-GitStatus {
-    if (Get-Command -Name "Get-GitStatus" -ErrorAction SilentlyContinue) {
+function global:Set-PoshContext {}
+
+function global:Set-PoshGitStatus {
+    if (Get-Module -Name "posh-git") {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSProvideCommentHelp', '', Justification='Variable used later(not in this scope)')]
         $Global:GitStatus = Get-GitStatus
     }
@@ -36,27 +38,19 @@ function Set-GitStatus {
     if ($null -ne $history -and $null -ne $history.EndExecutionTime -and $null -ne $history.StartExecutionTime) {
         $executionTime = ($history.EndExecutionTime - $history.StartExecutionTime).TotalMilliseconds
     }
-
-    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $startInfo.FileName = "::OMP::"
+    # Save current encoding and swap for UTF8
+    $originalOutputEncoding = [Console]::OutputEncoding
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $omp = "::OMP::"
     $config = $global:PoshSettings.Theme
     $cleanPWD = $PWD.ProviderPath.TrimEnd("\")
-    $startInfo.Arguments = "--config=""$config"" --error=$errorCode --pwd=""$cleanPWD"" --execution-time=$executionTime"
-    $startInfo.Environment["TERM"] = "xterm-256color"
-    $startInfo.CreateNoWindow = $true
-    $startInfo.StandardOutputEncoding = [System.Text.Encoding]::UTF8
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.UseShellExecute = $false
-    if ($PWD.Provider.Name -eq 'FileSystem') {
-        $startInfo.WorkingDirectory = $PWD.ProviderPath
-    }
-    $process = New-Object System.Diagnostics.Process
-    $process.StartInfo = $startInfo
-    $process.Start() | Out-Null
-    $standardOut = $process.StandardOutput.ReadToEnd()
-    $process.WaitForExit()
-    $standardOut
-    Set-GitStatus
+    $cleanPSWD = $PWD.ToString().TrimEnd("\")
+    $standardOut = @(&$omp --error="$errorCode" --pwd="$cleanPWD" --pswd="$cleanPSWD" --execution-time="$executionTime" --config="$config" 2>&1)
+    # Restore initial encoding
+    [Console]::OutputEncoding = $originalOutputEncoding
+    # the ouput can be multiline, joining these ensures proper rendering by adding line breaks with `n
+    $standardOut -join "`n"
+    Set-PoshGitStatus
     $global:LASTEXITCODE = $realLASTEXITCODE
     #remove temp variables
     Remove-Variable realLASTEXITCODE -Confirm:$false

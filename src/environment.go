@@ -1,18 +1,17 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/distatus/battery"
 	"github.com/shirou/gopsutil/host"
@@ -23,6 +22,21 @@ const (
 	unknown         = "unknown"
 	windowsPlatform = "windows"
 )
+
+type commandError struct {
+	err      string
+	exitCode int
+}
+
+func (e *commandError) Error() string {
+	return e.err
+}
+
+type fileInfo struct {
+	parentFolder string
+	path         string
+	isDir        bool
+}
 
 type environmentInfo interface {
 	getenv(key string) string
@@ -48,6 +62,7 @@ type environmentInfo interface {
 	getShellName() string
 	getWindowTitle(imageName, windowTitleRegex string) (string, error)
 	doGet(url string) ([]byte, error)
+	hasParentFilePath(path string) (fileInfo *fileInfo, err error)
 }
 
 type environment struct {
@@ -55,13 +70,10 @@ type environment struct {
 	cwd  string
 }
 
-type commandError struct {
-	exitCode int
-}
-
-func (e *commandError) Error() string {
-	return fmt.Sprintf("%d", e.exitCode)
-}
+var (
+	commands map[string]string = make(map[string]string)
+	lock                       = sync.Mutex{}
+)
 
 func (env *environment) getenv(key string) string {
 	return os.Getenv(key)
@@ -72,7 +84,7 @@ func (env *environment) getcwd() string {
 		return env.cwd
 	}
 	correctPath := func(pwd string) string {
-		// on Windows, and being case sentisitive and not consistent and all, this gives silly issues
+		// on Windows, and being case sensitive and not consistent and all, this gives silly issues
 		return strings.Replace(pwd, "c:", "C:", 1)
 	}
 	if env.args != nil && *env.args.PWD != "" {
@@ -153,48 +165,38 @@ func (env *environment) getPlatform() string {
 }
 
 func (env *environment) runCommand(command string, args ...string) (string, error) {
-	cmd := exec.Command(command, args...)
-	stdout, err := cmd.StdoutPipe()
+	if cmd, ok := commands[command]; ok {
+		command = cmd
+	}
+	out, err := exec.Command(command, args...).Output()
 	if err != nil {
-		log.Fatal(err)
-	}
-	err = cmd.Start()
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		_ = cmd.Process.Kill()
-	}()
-	output := new(bytes.Buffer)
-	defer output.Reset()
-	buf := bufio.NewReader(stdout)
-	multiline := false
-	for {
-		line, _, _ := buf.ReadLine()
-		if line == nil {
-			break
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return "", &commandError{
+				err:      exitErr.Error(),
+				exitCode: exitErr.ExitCode(),
+			}
 		}
-		if multiline {
-			output.WriteString("\n")
-		}
-		output.Write(line)
-		multiline = true
 	}
-	return output.String(), nil
+	return strings.TrimSpace(string(out)), nil
 }
 
 func (env *environment) runShellCommand(shell, command string) string {
-	out, err := exec.Command(shell, "-c", command).Output()
-	if err != nil {
-		log.Println(err)
-		return ""
-	}
-	return strings.TrimSpace(string(out))
+	out, _ := env.runCommand(shell, "-c", command)
+	return out
 }
 
 func (env *environment) hasCommand(command string) bool {
-	_, err := exec.LookPath(command)
-	return err == nil
+	if _, ok := commands[command]; ok {
+		return true
+	}
+	path, err := exec.LookPath(command)
+	if err == nil {
+		lock.Lock()
+		commands[command] = path
+		lock.Unlock()
+		return true
+	}
+	return false
 }
 
 func (env *environment) lastErrorCode() int {
@@ -239,7 +241,9 @@ func (env *environment) getShellName() string {
 }
 
 func (env *environment) doGet(url string) ([]byte, error) {
-	request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	ctx, cncl := context.WithTimeout(context.Background(), time.Millisecond*20)
+	defer cncl()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -253,6 +257,29 @@ func (env *environment) doGet(url string) ([]byte, error) {
 		return nil, err
 	}
 	return body, nil
+}
+
+func (env *environment) hasParentFilePath(path string) (*fileInfo, error) {
+	currentFolder := env.getcwd()
+	for {
+		searchPath := filepath.Join(currentFolder, path)
+		info, err := os.Stat(searchPath)
+		if err == nil {
+			return &fileInfo{
+				parentFolder: currentFolder,
+				path:         searchPath,
+				isDir:        info.IsDir(),
+			}, nil
+		}
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+		if dir := filepath.Dir(currentFolder); dir != currentFolder {
+			currentFolder = dir
+			continue
+		}
+		return nil, errors.New("no match at root level")
+	}
 }
 
 func cleanHostName(hostName string) string {

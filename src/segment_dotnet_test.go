@@ -23,17 +23,18 @@ func bootStrapDotnetTest(args *dotnetArgs) *dotnet {
 	} else {
 		env.On("runCommand", "dotnet", []string{"--version"}).Return(args.version, nil)
 	}
+
+	env.On("hasFiles", "*.cs").Return(true)
+	env.On("getPathSeperator", nil).Return("")
 	props := &properties{
 		values: map[Property]interface{}{
 			DisplayVersion:               args.displayVersion,
 			UnsupportedDotnetVersionIcon: args.unsupportedIcon,
 		},
 	}
-	a := &dotnet{
-		env:   env,
-		props: props,
-	}
-	return a
+	dotnet := &dotnet{}
+	dotnet.init(props, env)
+	return dotnet
 }
 
 func TestEnabledDotnetNotFound(t *testing.T) {
@@ -41,7 +42,7 @@ func TestEnabledDotnetNotFound(t *testing.T) {
 		enabled: false,
 	}
 	dotnet := bootStrapDotnetTest(args)
-	assert.False(t, dotnet.enabled())
+	assert.True(t, dotnet.enabled())
 }
 
 func TestDotnetVersionNotDisplayed(t *testing.T) {

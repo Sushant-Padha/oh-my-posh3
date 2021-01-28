@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh3/main/themes/schema.json",
   "blocks": [
     {
       "type": "prompt",
@@ -11,16 +12,6 @@
           "background": "#c386f1",
           "leading_diamond": "\uE0B6",
           "trailing_diamond": "\uE0B0"
-        },
-        {
-          "type": "spotify",
-          "style": "powerline",
-          "powerline_symbol": "\uE0B0",
-          "foreground": "#ffffff",
-          "background": "#1BD760",
-          "properties": {
-            "prefix": " \uF9C6 "
-          }
         },
         {
           "type": "path",

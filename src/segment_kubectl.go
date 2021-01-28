@@ -16,9 +16,10 @@ func (k *kubectl) init(props *properties, env environmentInfo) {
 }
 
 func (k *kubectl) enabled() bool {
-	if !k.env.hasCommand("kubectl") {
+	cmd := "kubectl"
+	if !k.env.hasCommand(cmd) {
 		return false
 	}
-	k.contextName, _ = k.env.runCommand("kubectl", "config", "current-context")
+	k.contextName, _ = k.env.runCommand(cmd, "config", "current-context")
 	return k.contextName != ""
 }

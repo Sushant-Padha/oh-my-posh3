@@ -19,7 +19,7 @@ func TestExecuteCommand(t *testing.T) {
 	}
 	enabled := c.enabled()
 	assert.True(t, enabled)
-	assert.Equal(t, c.string(), "hello")
+	assert.Equal(t, "hello", c.string())
 }
 
 func TestExecuteMultipleCommandsOrFirst(t *testing.T) {
@@ -35,7 +35,7 @@ func TestExecuteMultipleCommandsOrFirst(t *testing.T) {
 	}
 	enabled := c.enabled()
 	assert.True(t, enabled)
-	assert.Equal(t, c.string(), "hello")
+	assert.Equal(t, "hello", c.string())
 }
 
 func TestExecuteMultipleCommandsOrSecond(t *testing.T) {
@@ -51,7 +51,7 @@ func TestExecuteMultipleCommandsOrSecond(t *testing.T) {
 	}
 	enabled := c.enabled()
 	assert.True(t, enabled)
-	assert.Equal(t, c.string(), "hello")
+	assert.Equal(t, "hello", c.string())
 }
 
 func TestExecuteMultipleCommandsAnd(t *testing.T) {
@@ -67,7 +67,7 @@ func TestExecuteMultipleCommandsAnd(t *testing.T) {
 	}
 	enabled := c.enabled()
 	assert.True(t, enabled)
-	assert.Equal(t, c.string(), "helloworld")
+	assert.Equal(t, "helloworld", c.string())
 }
 
 func TestExecuteSingleCommandEmpty(t *testing.T) {

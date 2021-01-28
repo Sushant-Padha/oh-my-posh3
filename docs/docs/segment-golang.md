@@ -6,7 +6,7 @@ sidebar_label: Golang
 
 ## What
 
-Display the currently active golang version when a folder contains `.go` files.
+Display the currently active golang version when a folder contains golang files.
 
 ## Sample Configuration
 
@@ -26,7 +26,7 @@ Display the currently active golang version when a folder contains `.go` files.
 ## Properties
 
 - display_version: `boolean` - display the golang version - defaults to `true`
+- missing_command_text: `string` - text to display when the command is missing - defaults to empty
 - display_mode: `string` - determines when the segment is displayed
   - `always`: The segment is always displayed
-  - `context`: The segment is only displayed when *.go or go.mod files are present (default)
-  - `never`: The segement is hidden
+  - `files`: The segment is only displayed when `*.go` or `go.mod` files are present (default)

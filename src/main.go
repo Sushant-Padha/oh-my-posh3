@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -31,6 +30,7 @@ type args struct {
 	Config        *string
 	Shell         *string
 	PWD           *string
+	PSWD          *string
 	Version       *bool
 	Debug         *bool
 	ExecutionTime *float64
@@ -66,6 +66,10 @@ func main() {
 			"pwd",
 			"",
 			"the path you are working in"),
+		PSWD: flag.String(
+			"pswd",
+			"",
+			"the powershell path you are working in, useful when working with drives"),
 		Version: flag.Bool(
 			"version",
 			false,
@@ -130,13 +134,10 @@ func main() {
 
 	formats := &ansiFormats{}
 	formats.init(env.getShellName())
-
 	renderer := &AnsiRenderer{
-		buffer:  new(bytes.Buffer),
 		formats: formats,
 	}
 	colorer := &AnsiColor{
-		buffer:  new(bytes.Buffer),
 		formats: formats,
 	}
 	title := &consoleTitle{
@@ -166,7 +167,7 @@ func initShell(shell, config string) string {
 	}
 	switch shell {
 	case pwsh:
-		return fmt.Sprintf("Invoke-Expression (@(&\"%s\" --print-init --shell pwsh --config %s) -join \"`n\")", executable, config)
+		return fmt.Sprintf("Invoke-Expression (@(&\"%s\" --print-init --shell=pwsh --config=\"%s\") -join \"`n\")", executable, config)
 	case zsh, bash, fish:
 		return printShellInit(shell, config)
 	default:

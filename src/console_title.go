@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"text/template"
 )
 
@@ -27,36 +28,37 @@ const (
 	incorrectTitleTemplate = "unable to create title based on template"
 )
 
-// TitleTemplateContext defines what can be aded to the title when using the template
-type TitleTemplateContext struct {
-	Root   bool
-	Path   string
-	Folder string
-	Shell  string
-}
-
 func (t *consoleTitle) getConsoleTitle() string {
 	var title string
 	switch t.settings.ConsoleTitleStyle {
 	case FullPath:
-		title = t.env.getcwd()
+		title = t.getPwd()
 	case Template:
 		title = t.getTemplateText()
 	case FolderName:
 		fallthrough
 	default:
-		title = base(t.env.getcwd(), t.env)
+		title = base(t.getPwd(), t.env)
 	}
 	return fmt.Sprintf(t.formats.title, title)
 }
 
 func (t *consoleTitle) getTemplateText() string {
-	context := &TitleTemplateContext{
-		Root:   t.env.isRunningAsRoot(),
-		Path:   t.env.getcwd(),
-		Folder: base(t.env.getcwd(), t.env),
-		Shell:  t.env.getShellName(),
+	context := make(map[string]interface{})
+
+	context["Root"] = t.env.isRunningAsRoot()
+	context["Path"] = t.getPwd()
+	context["Folder"] = base(t.getPwd(), t.env)
+	context["Shell"] = t.env.getShellName()
+
+	// load environment variables into the map
+	envVars := map[string]string{}
+	matches := findAllNamedRegexMatch(`\.Env\.(?P<ENV>[^ \.}]*)`, t.settings.ConsoleTitleTemplate)
+	for _, match := range matches {
+		envVars[match["ENV"]] = t.env.getenv(match["ENV"])
 	}
+	context["Env"] = envVars
+
 	tmpl, err := template.New("title").Parse(t.settings.ConsoleTitleTemplate)
 	if err != nil {
 		return invalidTitleTemplate
@@ -68,4 +70,10 @@ func (t *consoleTitle) getTemplateText() string {
 		return incorrectTitleTemplate
 	}
 	return buffer.String()
+}
+
+func (t *consoleTitle) getPwd() string {
+	pwd := t.env.getcwd()
+	pwd = strings.Replace(pwd, t.env.homeDir(), "~", 1)
+	return pwd
 }
